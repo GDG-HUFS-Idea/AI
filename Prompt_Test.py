@@ -59,8 +59,8 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
     if not request or not rag_data:
         raise ValueError("입력 데이터 또는 RAG 데이터가 비어 있습니다.")
 
-    # === 여기서 AI 팀원의 프롬프트를 적용 ===
-    # 아래 문자열을 AI 팀원의 프롬프트로 교체하고, {변수명}을 적절히 매핑
+    # === 프롬프트 적용 ==한
+    # 아래 문자열을 사전 작성한 프롬프트로 교체하고, {변수명}을 적절히 매핑
     prompt_template = """
     여기에 AI 팀원이 작성한 프롬프트를 입력하세요.
     그리고 {ideaName}, {summary}, {features}, {targetAudience}, {rag_data} 등을 포함하도록 변수화하세요.
