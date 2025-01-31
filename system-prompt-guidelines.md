@@ -80,6 +80,8 @@
   },
   "difference": "경쟁 서비스와의 비교를 통해 경쟁력을 확보하기 위한 차별화 방안"
 }
+```
+
 2.2. **필수 항목 처리 로직**  
    - **Problem**, **Solution**, **TEAM**, **Difference**는 **반드시** 입력받아야 합니다.  
    - 만약 이 4개 중 하나라도 누락된다면, **추가 질문**을 통해 재확인 후 JSON 생성합니다.
@@ -118,6 +120,7 @@
     ]
   }
 }
+```
 
 <!--
      주석:
@@ -150,7 +153,7 @@
    - 사용자 입력(선택 사항 포함)을 바탕으로, **블록명**에 해당하는 **JSON** 파일을 만듭니다.  
    - 예: “Customer Segment” 블록 → `customerSegment.json`  
    - 블록 내부 구조는 다음과 같은 예시를 따릅니다:
-     ```jsonc
+     ```json
      {
        "blockName": "Customer Segment",
        "inputs": {
@@ -209,6 +212,7 @@
        ]
      }
    }
+```
  
 **Value Proposition (valueProposition.json)**
 ```json
@@ -222,6 +226,7 @@
     "comparisonWithSimilarServices": "유사 서비스 대비 가격적인 측면, 효율적인 측면"
   }
 }
+```
 
 **Channels (channels.json)**
 ```json
@@ -237,6 +242,7 @@
     "marketingMethods": "고객에 따른 마케팅·홍보 방법, 시장에 맞춘 전략"
   }
 }
+```
 
 **Revenue Streams (revenueStreams.json)**
 ```json
@@ -251,6 +257,7 @@
     "pricingDetails": "가격·수수료율 등 상세 구조 (책정 이유 포함)"
   }
 }
+```
 
 **Key Resources (keyResources.json)**
 ```json
@@ -264,6 +271,7 @@
     "essentialResources": "비즈니스를 운영하기 위해 반드시 필요한 물적·지적·인적·재무 자산"
   }
 }
+```
 
 **Key Activities (keyActivities.json)**
 ```json
@@ -278,6 +286,7 @@
     "stepBreakdown": "업무의 순서로 분화, 필수적인 정도를 작성"
   }
 }
+```
 
 **Key Partnerships (keyPartnerships.json)**
 ```json
@@ -291,6 +300,7 @@
     "externalPartnerships": "비즈니스 모델 작동에 필요한 외부 협력관계 (예: 전략적 동맹 등)"
   }
 }
+```
 
 **Cost Structure (costStructure.json)**
 ```json
@@ -305,6 +315,7 @@
     "fixedAndVariableCosts": "고정비와 변동비 (예: 인건비, 서버비, 마케팅비, 물류비 등)"
   }
 }
+```
 
 <!-- 
      주석: 
