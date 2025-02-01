@@ -11,7 +11,7 @@ class TestPromptGeneration(unittest.TestCase):
         cls.sample_request, cls.sample_rag_data = load_test_data()
 
     def test_generate_prompt(self):
-        """GPT-4o mini API를 호출하여 기대한 JSON 응답을 생성하는지 테스트"""
+        """GPT-4o API를 호출하여 기대한 JSON 응답을 생성하는지 테스트"""
         response_text = generate_prompt(self.sample_request, self.sample_rag_data)
         
         # 응답을 JSON 형식으로 변환
@@ -21,7 +21,10 @@ class TestPromptGeneration(unittest.TestCase):
             self.fail("API 응답이 올바른 JSON 형식이 아닙니다.")
 
         # 기대한 JSON 키가 포함되어 있는지 확인
-        expected_keys = ["swotAnalysis", "pestelAnalysis", "similarServices", "marketAnalysis"]
+        expected_keys = [
+            "swotAnalysis", "pestelAnalysis", "towsAnalysis",
+            "similarServices", "marketAnalysis", "marketGrowth", "ideaSuitability"
+        ]
         for key in expected_keys:
             self.assertIn(key, response_json, f"응답에 {key} 키가 포함되어야 합니다.")
 
@@ -63,7 +66,7 @@ def load_test_data():
     return request, rag_data
 
 def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
-    """GPT-4o mini API를 활용한 프롬프트 생성 함수"""
+    """GPT-4o API를 활용한 프롬프트 생성 함수"""
     if not request or not rag_data:
         raise ValueError("입력 데이터 또는 RAG 데이터가 비어 있습니다.")
 
@@ -71,9 +74,9 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
     if not api_key:
         raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
-    # === 사전 작성한 프롬프트 템플릿 ===
+    # === 개선된 프롬프트 템플릿 ===
     prompt_template = """
-    당신은 시장 분석 전문가입니다. 다음 정보를 바탕으로 시장 분석 및 경쟁 분석을 수행하세요.
+    당신은 AI 기반 시장 조사 및 경쟁 분석 전문가입니다. 주어진 데이터를 기반으로 SWOT, PESTEL, TOWS 분석을 수행하고, 유사 서비스 비교 및 시장 규모, 성장률, 아이디어 적합성 평가를 제공하세요.
 
     - 아이디어명: {ideaName}
     - 개요: {summary}
@@ -83,7 +86,7 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
     최신 시장 데이터:
     {rag_data}
 
-    당신의 분석 결과를 JSON 형식으로 제공하세요:
+    분석 결과를 아래 JSON 형식으로 반환하세요:
     {{
         "swotAnalysis": {{
             "strengths": "이 아이디어의 강점",
@@ -99,8 +102,22 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
             "environmental": "환경적 요인",
             "legal": "법적 요인"
         }},
-        "similarServices": [...],
-        "marketAnalysis": "시장 분석 결과"
+        "towsAnalysis": {{
+            "soStrategies": "강점과 기회를 활용한 전략",
+            "woStrategies": "약점을 개선하며 기회를 활용하는 전략",
+            "stStrategies": "강점을 활용하여 위협을 극복하는 전략",
+            "wtStrategies": "약점과 위협을 최소화하는 전략"
+        }},
+        "similarServices": [
+            {{
+                "name": "유사 서비스명",
+                "score": "유사도 점수 (0~1)",
+                "source": "출처"
+            }}
+        ],
+        "marketAnalysis": "시장 분석 결과",
+        "marketGrowth": "시장 성장률 및 전망",
+        "ideaSuitability": "이 아이디어의 시장 적합성 평가"
     }}
     """
 
@@ -117,7 +134,7 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": "You are a helpful AI consultant."},
+            messages=[{"role": "system", "content": "You are a market analysis AI consultant."},
                       {"role": "user", "content": formatted_prompt}],
             max_tokens=1000
         )
