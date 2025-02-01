@@ -47,10 +47,24 @@ def load_test_data():
     
     print("[INFO] test_data.json 파일이 없습니다. 직접 입력해주세요.")
     request = {
-        "ideaName": input("아이디어 이름: "),
-        "summary": input("아이디어 개요: "),
-        "features": input("주요 기능(쉼표로 구분): ").split(","),
-        "targetAudience": input("대상 고객: ")
+        "serviceSummary": input("서비스 요약: "),
+        "serviceMotivation": {
+            "external": input("외부 동기(사회·경제·기술 분야 국내·외 시장의 기회): "),
+            "internal": input("내부 동기(가치관, 비전 등): ")
+        },
+        "problem": input("문제점: "),
+        "solution": input("해결책: "),
+        "team": {
+            "members": [
+                {
+                    "name": input("팀원 이름: "),
+                    "role": input("역할: "),
+                    "experience": input("경력: ")
+                }
+            ],
+            "networks": input("기술적·인적 네트워크: ")
+        },
+        "difference": input("차별화 방안: ")
     }
     rag_data = {
         "market_size": input("시장 규모 정보: "),
@@ -78,10 +92,13 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
     prompt_template = """
     당신은 AI 기반 시장 조사 및 경쟁 분석 전문가입니다. 주어진 데이터를 기반으로 SWOT, PESTEL, TOWS 분석을 수행하고, 유사 서비스 비교 및 시장 규모, 성장률, 아이디어 적합성 평가를 제공하세요.
 
-    - 아이디어명: {ideaName}
-    - 개요: {summary}
-    - 주요 기능: {features}
-    - 대상 고객: {targetAudience}
+    - 서비스 요약: {serviceSummary}
+    - 외부 동기: {externalMotivation}
+    - 내부 동기: {internalMotivation}
+    - 문제점: {problem}
+    - 해결책: {solution}
+    - 팀 정보: {team}
+    - 차별화 방안: {difference}
     
     최신 시장 데이터:
     {rag_data}
@@ -123,10 +140,13 @@ def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
 
     # 데이터 적용
     formatted_prompt = prompt_template.format(
-        ideaName=request.get("ideaName", "N/A"),
-        summary=request.get("summary", "N/A"),
-        features=", ".join(request.get("features", [])),
-        targetAudience=request.get("targetAudience", "N/A"),
+        serviceSummary=request.get("serviceSummary", "N/A"),
+        externalMotivation=request.get("serviceMotivation", {}).get("external", "N/A"),
+        internalMotivation=request.get("serviceMotivation", {}).get("internal", "N/A"),
+        problem=request.get("problem", "N/A"),
+        solution=request.get("solution", "N/A"),
+        team=json.dumps(request.get("team", {}), ensure_ascii=False),
+        difference=request.get("difference", "N/A"),
         rag_data=json.dumps(rag_data, ensure_ascii=False)
     )
 
