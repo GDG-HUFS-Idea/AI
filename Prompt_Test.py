@@ -1,19 +1,24 @@
 import unittest
 import json
-import openai
 import os
+import glob
 from typing import Dict, Any
+from openai import OpenAI
+from openai import APIError, AuthenticationError, RateLimitError
+
+client = OpenAI()
 
 class TestPromptGeneration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        """테스트 시작 시 예제 데이터를 파일에서 로드하거나 사용자 입력을 받음"""
-        cls.sample_request, cls.sample_rag_data = load_test_data()
+        """테스트 시작 시 예제 데이터를 파일에서 로드"""
+        cls.user_id = "test_user"  # 테스트용 사용자 ID
+        cls.sample_request = load_test_data(cls.user_id)
 
     def test_generate_prompt(self):
-        """GPT-4o API를 호출하여 기대한 JSON 응답을 생성하는지 테스트"""
-        response_text = generate_prompt(self.sample_request, self.sample_rag_data)
-        
+        """GPT-4o API를 호출하여 JSON 응답을 생성하는지 테스트"""
+        response_text = generate_prompt(self.user_id, self.sample_request)
+
         # 응답을 JSON 형식으로 변환
         try:
             response_json = json.loads(response_text)
@@ -22,145 +27,104 @@ class TestPromptGeneration(unittest.TestCase):
 
         # 기대한 JSON 키가 포함되어 있는지 확인
         expected_keys = [
-            "swotAnalysis", "pestelAnalysis", "towsAnalysis",
-            "similarServices", "marketAnalysis", "marketGrowth", "ideaSuitability"
+            "summary", "marketAnalysis", "scores", "opportunities",
+            "limitations", "requiredTeam", "overall"
         ]
         for key in expected_keys:
             self.assertIn(key, response_json, f"응답에 {key} 키가 포함되어야 합니다.")
 
-    def test_rag_data_integration(self):
-        """RAG 데이터가 API 응답 내에 반영되는지 테스트"""
-        response_text = generate_prompt(self.sample_request, self.sample_rag_data)
-        self.assertIn("Crunchbase", response_text)
-        self.assertIn("ServiceA", response_text)
-        self.assertIn("0.85", response_text)  # 유사도 점수 포함 여부 확인
+def load_test_data(user_id: str) -> Dict[str, Any]:
+    """가장 최신 사용자 입력 파일을 찾아서 로드"""
+    input_files = sorted(glob.glob(f"{user_id}_input(*).json"), key=os.path.getctime, reverse=True)
 
-def load_test_data():
-    """테스트용 데이터를 JSON 파일에서 읽거나 사용자 입력을 통해 로드"""
-    file_path = "test_data.json"
-    
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
-            print("[INFO] 테스트 데이터를 test_data.json에서 로드했습니다.")
-            return data["request"], data["rag_data"]
-    
-    print("[INFO] test_data.json 파일이 없습니다. 직접 입력해주세요.")
-    request = {
-        "serviceSummary": input("서비스 요약: "),
-        "serviceMotivation": {
-            "external": input("외부 동기(사회·경제·기술 분야 국내·외 시장의 기회): "),
-            "internal": input("내부 동기(가치관, 비전 등): ")
-        },
-        "problem": input("문제점: "),
-        "solution": input("해결책: "),
-        "team": {
-            "members": [
-                {
-                    "name": input("팀원 이름: "),
-                    "role": input("역할: "),
-                    "experience": input("경력: ")
-                }
-            ],
-            "networks": input("기술적·인적 네트워크: ")
-        },
-        "difference": input("차별화 방안: ")
-    }
-    rag_data = {
-        "market_size": input("시장 규모 정보: "),
-        "similar_services": [
-            {
-                "name": input("유사 서비스 이름: "),
-                "score": float(input("유사도 점수(0~1): ")),
-                "source": input("출처: ")
-            }
-        ]
-    }
-    
-    return request, rag_data
+    if input_files:
+        latest_file = input_files[0]
+        with open(latest_file, "r", encoding="utf-8") as file:
+            print(f"[INFO] {latest_file}에서 테스트 데이터를 로드했습니다.")
+            return json.load(file)
 
-def generate_prompt(request: Dict[str, Any], rag_data: Dict[str, Any]) -> str:
+    print("[ERROR] 입력 파일을 찾을 수 없습니다.")
+    return {}
+
+def generate_prompt(user_id: str, request: Dict[str, Any]) -> str:
     """GPT-4o API를 활용한 프롬프트 생성 함수"""
-    if not request or not rag_data:
-        raise ValueError("입력 데이터 또는 RAG 데이터가 비어 있습니다.")
+    if not request:
+        raise ValueError("입력 데이터가 비어 있습니다.")
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
-    # === 개선된 프롬프트 템플릿 ===
-    prompt_template = """
-    당신은 AI 기반 시장 조사 및 경쟁 분석 전문가입니다. 주어진 데이터를 기반으로 SWOT, PESTEL, TOWS 분석을 수행하고, 유사 서비스 비교 및 시장 규모, 성장률, 아이디어 적합성 평가를 제공하세요.
+    system_prompt = """
+    당신은 **스타트업 컨설턴트 겸 시장 분석 전문가**입니다.
+    사용자의 아이디어를 바탕으로 분석을 수행하고, JSON 형식으로 보고서를 제공합니다.
+    결과는 다음과 같은 JSON 구조를 따라야 합니다:
 
-    - 서비스 요약: {serviceSummary}
-    - 외부 동기: {externalMotivation}
-    - 내부 동기: {internalMotivation}
-    - 문제점: {problem}
-    - 해결책: {solution}
-    - 팀 정보: {team}
-    - 차별화 방안: {difference}
-    
-    최신 시장 데이터:
-    {rag_data}
-
-    분석 결과를 아래 JSON 형식으로 반환하세요:
-    {{
-        "swotAnalysis": {{
-            "strengths": "이 아이디어의 강점",
-            "weaknesses": "이 아이디어의 약점",
-            "opportunities": "시장 기회",
-            "threats": "시장 위협"
-        }},
-        "pestelAnalysis": {{
-            "political": "정치적 요인",
-            "economic": "경제적 요인",
-            "social": "사회적 요인",
-            "technological": "기술적 요인",
-            "environmental": "환경적 요인",
-            "legal": "법적 요인"
-        }},
-        "towsAnalysis": {{
-            "soStrategies": "강점과 기회를 활용한 전략",
-            "woStrategies": "약점을 개선하며 기회를 활용하는 전략",
-            "stStrategies": "강점을 활용하여 위협을 극복하는 전략",
-            "wtStrategies": "약점과 위협을 최소화하는 전략"
-        }},
-        "similarServices": [
-            {{
-                "name": "유사 서비스명",
-                "score": "유사도 점수 (0~1)",
-                "source": "출처"
-            }}
-        ],
-        "marketAnalysis": "시장 분석 결과",
-        "marketGrowth": "시장 성장률 및 전망",
-        "ideaSuitability": "이 아이디어의 시장 적합성 평가"
-    }}
+    ```json
+    {
+        "summary": "아이디어 요약",
+        "marketAnalysis": "시장 분석",
+        "scores": {
+            "similarServices": "유사 서비스 점수",
+            "expectedBM": "예상 BM 점수"
+        },
+        "opportunities": "사업 기회 분석",
+        "limitations": "한계점 및 리스크",
+        "requiredTeam": "필요 팀원 구성",
+        "overall": "종합 평가"
+    }
+    ```
     """
 
-    # 데이터 적용
-    formatted_prompt = prompt_template.format(
-        serviceSummary=request.get("serviceSummary", "N/A"),
-        externalMotivation=request.get("serviceMotivation", {}).get("external", "N/A"),
-        internalMotivation=request.get("serviceMotivation", {}).get("internal", "N/A"),
-        problem=request.get("problem", "N/A"),
-        solution=request.get("solution", "N/A"),
-        team=json.dumps(request.get("team", {}), ensure_ascii=False),
-        difference=request.get("difference", "N/A"),
-        rag_data=json.dumps(rag_data, ensure_ascii=False)
-    )
+    formatted_prompt = json.dumps(request, ensure_ascii=False, indent=4)
 
     # OpenAI API 호출
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
-            messages=[{"role": "system", "content": "You are a market analysis AI consultant."},
-                      {"role": "user", "content": formatted_prompt}],
-            max_tokens=1000
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": formatted_prompt}
+            ],
+            max_tokens=1000,
+            response_format={ "type": "json_object" }
         )
-        return response["choices"][0]["message"]["content"]
+        
+        response_content = response.choices[0].message.content
+        save_response(user_id, response_content)
+        return response_content
+    except AuthenticationError:
+        raise RuntimeError("OpenAI API 키 인증 실패")
+    except RateLimitError:
+        raise RuntimeError("API 호출 제한 초과")
+    except APIError:
+        raise RuntimeError("OpenAI API 서버 연결 실패")
     except Exception as e:
         raise RuntimeError(f"OpenAI API 호출 중 오류 발생: {str(e)}")
+
+def save_response(user_id: str, response_text: str):
+    """API 응답 결과를 JSON 파일로 저장"""
+    try:
+        response_json = json.loads(response_text)
+    except json.JSONDecodeError:
+        print("[ERROR] 응답이 JSON 형식이 아닙니다.")
+        return
+
+    output_files = {
+        "summary": f"{user_id}_summary.json",
+        "marketAnalysis": f"{user_id}_marketAnalysis.json",
+        "scores": f"{user_id}_scores.json",
+        "opportunities": f"{user_id}_opportunities.json",
+        "limitations": f"{user_id}_limitations.json",
+        "requiredTeam": f"{user_id}_requiredTeam.json",
+        "overall": f"{user_id}_overall.json"
+    }
+
+    for key, file_name in output_files.items():
+        if key in response_json:
+            with open(file_name, "w", encoding="utf-8") as file:
+                json.dump(response_json[key], file, ensure_ascii=False, indent=4)
+                print(f"[INFO] {file_name} 파일을 저장했습니다.")
 
 if __name__ == "__main__":
     unittest.main()
