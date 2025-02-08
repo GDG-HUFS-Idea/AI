@@ -3,51 +3,48 @@ import json
 import os
 import glob
 from typing import Dict, Any
-from openai import OpenAI
-from openai import APIError, AuthenticationError, RateLimitError
+from openai import OpenAI, APIError, AuthenticationError, RateLimitError
 
 client = OpenAI()
 
 class TestPromptGeneration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        """테스트 시작 시 예제 데이터를 파일에서 로드"""
-        cls.user_id = "test_user"  # 테스트용 사용자 ID
-        cls.sample_request = load_test_data(cls.user_id)
+        cls.test_data = cls.load_test_data()
 
-    def test_generate_prompt(self):
-        """GPT-4o API를 호출하여 JSON 응답을 생성하는지 테스트"""
-        response_text = generate_prompt(self.user_id, self.sample_request)
+    @classmethod
+    def load_test_data(cls):
+        test_files = sorted(glob.glob("Test_Files/*.json"))  
+        data = []
+        for file_path in test_files:
+            with open(file_path, "r", encoding="utf-8") as file:
+                sample = json.load(file)
+                data.append(sample)
+        return data
 
-        # 응답을 JSON 형식으로 변환
-        try:
-            response_json = json.loads(response_text)
-        except json.JSONDecodeError:
-            self.fail("API 응답이 올바른 JSON 형식이 아닙니다.")
+    def test_generate_prompts(self):
+        for index, sample_request in enumerate(self.test_data):
+            with self.subTest(sample=index + 1):
+                try:
+                    response_text = generate_prompt(sample_request)
+                    response_json = json.loads(response_text)
 
-        # 기대한 JSON 키가 포함되어 있는지 확인
-        expected_keys = [
-            "summary", "marketAnalysis", "scores", "opportunities",
-            "limitations", "requiredTeam", "overall"
-        ]
-        for key in expected_keys:
-            self.assertIn(key, response_json, f"응답에 {key} 키가 포함되어야 합니다.")
+                    user_id = sample_request.get("user_id", "default_user")
+                    result_filename = f"{user_id}_result({index + 1}).json"
+                    summary_filename = f"{user_id}_summary({index + 1}).json"
 
-def load_test_data(user_id: str) -> Dict[str, Any]:
-    """가장 최신 사용자 입력 파일을 찾아서 로드"""
-    input_files = sorted(glob.glob(f"{user_id}_input(*).json"), key=os.path.getctime, reverse=True)
+                    save_json(response_json, result_filename)
+                    
+                    # ✅ Summary 파일 개선: 아이디어 키워드만 포함
+                    idea_keywords = response_json.get("marketAnalysis", {}).get("ideaKeywords", [])
+                    save_json({"keywords": idea_keywords}, summary_filename)
 
-    if input_files:
-        latest_file = input_files[0]
-        with open(latest_file, "r", encoding="utf-8") as file:
-            print(f"[INFO] {latest_file}에서 테스트 데이터를 로드했습니다.")
-            return json.load(file)
+                except json.JSONDecodeError:
+                    self.fail(f"API 응답이 올바른 JSON 형식이 아닙니다. (샘플 {index + 1})")
+                except Exception as e:
+                    self.fail(f"테스트 실패: {str(e)} (샘플 {index + 1})")
 
-    print("[ERROR] 입력 파일을 찾을 수 없습니다.")
-    return {}
-
-def generate_prompt(user_id: str, request: Dict[str, Any]) -> str:
-    """GPT-4o API를 활용한 프롬프트 생성 함수"""
+def generate_prompt(request: Dict[str, Any]) -> str:
     if not request:
         raise ValueError("입력 데이터가 비어 있습니다.")
 
@@ -56,75 +53,64 @@ def generate_prompt(user_id: str, request: Dict[str, Any]) -> str:
         raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
     system_prompt = """
-    당신은 **스타트업 컨설턴트 겸 시장 분석 전문가**입니다.
-    사용자의 아이디어를 바탕으로 분석을 수행하고, JSON 형식으로 보고서를 제공합니다.
-    결과는 다음과 같은 JSON 구조를 따라야 합니다:
+    당신은 **스타트업 컨설턴트 겸 시장 분석 전문가**입니다.  
+    사용자가 제시한 아이디어를 바탕으로 **시장 분석**, **기회 요인**, **한계점**, **비즈니스 모델 성공 가능성** 등을 평가하여 JSON 형식의 분석 보고서를 제공합니다.
 
-    ```json
+    결과 JSON 형식:
     {
-        "summary": "아이디어 요약",
-        "marketAnalysis": "시장 분석",
-        "scores": {
-            "similarServices": "유사 서비스 점수",
-            "expectedBM": "예상 BM 점수"
-        },
-        "opportunities": "사업 기회 분석",
-        "limitations": "한계점 및 리스크",
-        "requiredTeam": "필요 팀원 구성",
-        "overall": "종합 평가"
+        "marketAnalysis": {
+            "classification": { ... },
+            "averageRevenue": { ... },  
+            "last5YearsGrowthChart": { "growthRate": "15.2%", "source": "출처 링크" },  
+            "scores": {  
+                "similarServices": [  
+                    { "name": "서비스명", "url": "링크", "similarityScore": "85%", "similarityFormula": "TF-IDF + Cosine Similarity" }  
+                ],  
+                "expectedBM": { ... }
+            },  
+            "opportunities": { ... },  
+            "limitations": { ... },  
+            "requiredTeam": [  
+                { "role": "AI 전문가", "tasks": "자연어 처리 모델 개발 및 성능 최적화" },  
+                { "role": "백엔드 개발자", "tasks": "API 및 서버 인프라 구축, 데이터베이스 설계" },  
+                { "role": "디자이너", "tasks": "UX/UI 디자인 및 프로토타이핑" },  
+                { "role": "마케팅 전문가", "tasks": "시장 조사, 홍보 전략 수립 및 실행" }  
+            ],  
+            "oneLineReview": "제안하신 아이디어는 혁신적인 기술적 접근 방식과 시장 성장 가능성 측면에서 강점이 될 수 있고, 초기 시장 진입 장벽과 법적 리스크 부분 때문에 위험이 될 수 있습니다. 시장 진출 타이밍은 업계 트렌드 변화가 가시화되는 시점이 적절할 것으로 보입니다.",
+            "totalScore": 7.8  
+        }
     }
-    ```
+
+    - **시장 구분**: 대분류 > 중분류 > 소분류 > 세분류 방식 적용
+    - **업계 평균 매출**: 국내 및 글로벌 시장 비교
+    - **최근 5년 성장률**: "~%" 형식 및 시장 조사 출처 포함
+    - **유사 서비스 경쟁력 분석**: 유사 서비스 5개 제공 및 유사도 백분율 표기
+    - **비즈니스 모델 평가**: 성공 가능성 점수 및 적용 가능 BM 설명
+    - **기회 요인**: 정부 지원사업, 고객층, 제휴·파트너십 가능성 포함
+    - **한계점**: 법률/특허 이슈, 시장 진입장벽, 기술적 리스크 포함
+    - **핵심 직군**: 역할별 세부 작업 내용 포함
+    - **아이디어 요약**: 강점/위험 요소/시장 진출 타이밍 포함
     """
 
-    formatted_prompt = json.dumps(request, ensure_ascii=False, indent=4)
+    formatted_prompt = f"{system_prompt}\n{json.dumps(request, ensure_ascii=False)}"
 
-    # OpenAI API 호출
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": formatted_prompt}
-            ],
-            max_tokens=1000,
-            response_format={ "type": "json_object" }
-        )
-        
-        response_content = response.choices[0].message.content
-        save_response(user_id, response_content)
-        return response_content
-    except AuthenticationError:
-        raise RuntimeError("OpenAI API 키 인증 실패")
-    except RateLimitError:
-        raise RuntimeError("API 호출 제한 초과")
-    except APIError:
-        raise RuntimeError("OpenAI API 서버 연결 실패")
-    except Exception as e:
-        raise RuntimeError(f"OpenAI API 호출 중 오류 발생: {str(e)}")
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": formatted_prompt}
+        ],
+        max_tokens=1200,
+        response_format={"type": "json_object"}
+    )
+    
+    response_content = response.choices[0].message.content
+    return response_content
 
-def save_response(user_id: str, response_text: str):
-    """API 응답 결과를 JSON 파일로 저장"""
-    try:
-        response_json = json.loads(response_text)
-    except json.JSONDecodeError:
-        print("[ERROR] 응답이 JSON 형식이 아닙니다.")
-        return
-
-    output_files = {
-        "summary": f"{user_id}_summary.json",
-        "marketAnalysis": f"{user_id}_marketAnalysis.json",
-        "scores": f"{user_id}_scores.json",
-        "opportunities": f"{user_id}_opportunities.json",
-        "limitations": f"{user_id}_limitations.json",
-        "requiredTeam": f"{user_id}_requiredTeam.json",
-        "overall": f"{user_id}_overall.json"
-    }
-
-    for key, file_name in output_files.items():
-        if key in response_json:
-            with open(file_name, "w", encoding="utf-8") as file:
-                json.dump(response_json[key], file, ensure_ascii=False, indent=4)
-                print(f"[INFO] {file_name} 파일을 저장했습니다.")
+def save_json(data, filename):
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    print(f"✅ {filename} 저장 완료")
 
 if __name__ == "__main__":
     unittest.main()
