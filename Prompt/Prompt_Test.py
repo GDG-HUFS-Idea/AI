@@ -11,35 +11,38 @@ client = OpenAI()
 class TestPromptGeneration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # 테스트 데이터 로드 및 결과 폴더 생성
         cls.test_data = cls.load_test_data()
         cls.result_folder = cls._create_result_folder()  # 결과 파일 저장 폴더 설정
 
     @classmethod
     def load_test_data(cls):
+        # 테스트 데이터 파일 로드
         test_files = sorted(glob.glob("TestData/*.json"))
         data = []
         for file_path in test_files:
             with open(file_path, "r", encoding="utf-8") as file:
-                sample = json.load(file)
-                data.append(sample)
+                sample = json.load(file)  # JSON 파일 읽기
+                data.append(sample)  # 데이터 리스트에 추가
         return data
 
     @classmethod
     def _create_result_folder(cls):
         # 결과 폴더를 현재 작업 디렉토리에 생성
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        result_folder = f"result_{timestamp}"
+        result_folder = f"result_{timestamp}"  # 결과 폴더 이름 설정
         os.makedirs(result_folder, exist_ok=True)  # result 폴더 생성 (덮어쓰기 방지)
         return result_folder
 
     def test_generate_prompts(self):
+        # 각 테스트 샘플에 대해 프롬프트 생성 테스트
         for index, sample_request in enumerate(self.test_data):
             with self.subTest(sample=index + 1):
                 try:
-                    response_text = generate_prompt(sample_request)
-                    response_json = json.loads(response_text)
+                    response_text = generate_prompt(sample_request)  # 프롬프트 생성
+                    response_json = json.loads(response_text)  # JSON으로 변환
 
-                    user_id = sample_request.get("user_id", "default_user")
+                    user_id = sample_request.get("user_id", "default_user")  # 사용자 ID 가져오기
                     # 각 입력에 대해 고유한 파일 이름 생성
                     result_filename = f"{self.result_folder}/{user_id}_result_{index + 1}.json"
                     summary_filename = f"{self.result_folder}/{user_id}_summary_{index + 1}.json"
@@ -63,8 +66,8 @@ class TestPromptGeneration(unittest.TestCase):
 
     def summarize_idea(self, sample_request):
         """사용자의 아이디어를 5단어 이내로 요약하는 함수 (생성형 AI 활용)"""
-        problem = sample_request.get("problem", {}).get("identifiedIssues", [])
-        solution = sample_request.get("solution", {}).get("coreElements", [])
+        problem = sample_request.get("problem", {}).get("identifiedIssues", [])  # 문제 식별
+        solution = sample_request.get("solution", {}).get("coreElements", [])  # 해결책 식별
 
         # 문제와 해결책을 결합하여 아이디어 텍스트 생성
         idea_text = f"문제: {' '.join(problem)}, 해결책: {' '.join(solution)}"
@@ -83,99 +86,100 @@ class TestPromptGeneration(unittest.TestCase):
                 max_tokens=30,  # 요약문 생성을 위한 max_tokens 값 조정
                 n=1,
                 stop=None,
-                temperature=0.5, # temperature 값 조정 (선택 사항)
+                temperature=0.5,  # temperature 값 조정 (선택 사항)
             )
-            summary_text = response.choices[0].message.content.strip()
-            # summary_text = response.choices[0].message.content.strip() # 요약 결과 텍스트 추출 및 공백 제거
+            summary_text = response.choices[0].message.content.strip()  # 요약 결과 텍스트 추출 및 공백 제거
             return summary_text
-
 
         except Exception as e:
             print(f"요약 생성 실패: {e}")
             return "요약 실패"  # 요약 실패 시 에러 메시지 반환
 
-
 def generate_prompt(request: Dict[str, Any]) -> str:
+    # 프롬프트 생성을 위한 함수
     if not request:
         raise ValueError("입력 데이터가 비어 있습니다.")
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")  # 환경 변수에서 API 키 가져오기
     if not api_key:
         raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
     model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")  # 모델 버전 명시 (환경 변수 사용)
 
-    system_prompt = """
+    system_prompt = f"""
     당신은 **스타트업 컨설턴트 겸 시장 분석 전문가**입니다.
-    사용자가 제시한 아이디어를 바탕으로 **시장 분석**, **기회 요인**, **한계점**, **비즈니스 모델 성공 가능성** 등을 평가하여 JSON 형식의 분석 보고서를 제공합니다.
+    **현재는 2025년**이며, 사용자가 제시한 아이디어를 바탕으로 **최신 시장 분석**, **기회 요인**, **한계점**, **비즈니스 모델 성공 가능성** 등을 평가하여 JSON 형식의 분석 보고서를 제공합니다.
 
     결과 JSON 형식:
-    {
-        "marketAnalysis": {
-            "classification": {
+    {{
+        "marketAnalysis": {{
+            "classification": {{
                 "large": "대분류",
                 "medium": "중분류",
-                "small": "소분류"
-            },
-            "averageRevenue": {
-                "domestic": "연 매출 약 3조 원 추정",
-                "global": "연 매출 약 20조 원 추정"
-            },
-            "last5YearsGrowthChart": {
-                "2018": "5%",
-                "2019": "7%",
-                "2020": "9%",
-                "2021": "11%",
-                "2022": "13%"
-            },
-            "scores": {
+                "small": "소분류",
+                "detail": "세분류"
+            }},
+            "averageRevenue": {{
+                "domestic": "연 매출 약 3조 원 추정", // ✅ 국내 시장 규모
+                "global": "연 매출 약 20조 원 추정",  // ✅ 글로벌 시장 규모
+                "source": "Statista, 2025" // ✅ 출처 정보 추가 (2025년으로 변경)
+            }},
+            "last5YearsGrowthChart": {{
+                "2021": {{ "marketSize": "123조 원", "growthRate": "11%" }}, // ✅ 2021년 시장 규모 및 성장률 (최신 연도로 변경)
+                "2022": {{ "marketSize": "138조 원", "growthRate": "13%" }}, // ✅ 2022년 시장 규모 및 성장률 (최신 연도로 변경)
+                "2023": {{ "marketSize": "155조 원", "growthRate": "15%" }}, // ✅ 2023년 시장 규모 및 성장률 (최신 연도로 변경)
+                "2024": {{ "marketSize": "175조 원", "growthRate": "17%" }}, // ✅ 2024년 시장 규모 및 성장률 (최신 연도로 변경)
+                "2025 추정치": {{ "marketSize": "200조 원", "growthRate": "20%" }}, // ✅ 2025년 시장 규모 및 성장률 (최신 연도로 변경)
+                "source": "Grand View Research, 2025" // ✅ 출처 정보 추가 (2025년으로 변경)
+            }},
+            "scores": {{
                 "similarServices": [
-                    { "name": "서비스1", "url": "링크1", "similarityScore": "85%", "similarityFormula": "TF-IDF + Cosine Similarity" },
-                    { "name": "서비스2", "url": "링크2", "similarityScore": "80%", "similarityFormula": "TF-IDF + Cosine Similarity" },
-                    { "name": "서비스3", "url": "링크3", "similarityScore": "75%", "similarityFormula": "TF-IDF + Cosine Similarity" },
-                    { "name": "서비스4", "url": "링크4", "similarityScore": "70%", "similarityFormula": "TF-IDF + Cosine Similarity" },
-                    { "name": "서비스5", "url": "링크5", "similarityScore": "65%", "similarityFormula": "TF-IDF + Cosine Similarity" }
+                    {{ "name": "서비스1", "url": "링크1", "similarityScore": "85%", "similarityFormula": "TF-IDF + Cosine Similarity" }},
+                    {{ "name": "서비스2", "url": "링크2", "similarityScore": "80%", "similarityFormula": "TF-IDF + Cosine Similarity" }},
+                    {{ "name": "서비스3", "url": "링크3", "similarityScore": "75%", "similarityFormula": "TF-IDF + Cosine Similarity" }},
+                    {{ "name": "서비스4", "url": "링크4", "similarityScore": "70%", "similarityFormula": "TF-IDF + Cosine Similarity" }},
+                    {{ "name": "서비스5", "url": "링크5", "similarityScore": "65%", "similarityFormula": "TF-IDF + Cosine Similarity" }}
                 ],
-                "expectedBM": { ... },
-                "fieldScores": {
+                "expectedBM": {{ ... }},
+                "fieldScores": {{
                     "marketSize": 8.5,
                     "growthPotential": 9.0,
                     "bmViability": 7.5,
                     "competitiveAdvantage": 8.0,
                     "overallScore": 8.2
-                },
+                }},
                 "totalScore": 8.2
-            },
-            "opportunities": { ... },
-            "limitations": { ... },
+            }},
+            "opportunities": {{ ... }},
+            "limitations": {{ ... }},
             "requiredTeam": [
-                {
+                {{
                     "role": "AI 전문가",
                     "tasks": "자연어 처리 모델 개발 및 성능 최적화",
                     "competencies": ["자연어 처리", "머신러닝", "딥러닝", "Python", "TensorFlow/PyTorch"]
-                },
-                {
+                }},
+                {{
                     "role": "백엔드 개발자",
                     "tasks": "API 및 서버 인프라 구축, 데이터베이스 설계",
                     "competencies": ["Python", "Django/Flask", "REST API 설계", "Database (SQL/NoSQL)", "AWS/GCP"]
-                },
-                {
+                }},
+                {{
                     "role": "디자이너",
                     "tasks": "UX/UI 디자인 및 프로토타이핑",
                     "competencies": ["UX/UI 디자인", "Figma/Sketch", "GUI 디자인", "사용자 리서치"]
-                },
-                {
+                }},
+                {{
                     "role": "마케팅 전문가",
                     "tasks": "시장 조사, 홍보 전략 수립 및 실행",
                     "competencies": ["시장 조사", "데이터 분석", "디지털 마케팅", "콘텐츠 마케팅", "SEO/SEM"]
-                }
+                }}
             ],
             "oneLineReview": "제안하신 아이디어는 혁신적인 기술적 접근 방식과 시장 성장 가능성 측면에서 강점이 될 수 있고, 초기 시장 진입 장벽과 법적 리스크 부분 때문에 위험이 될 수 있습니다."
-        }
-    }
+        }}
+    }}
     """
 
-    formatted_prompt = f"{system_prompt}\n{json.dumps(request, ensure_ascii=False)}"
+    formatted_prompt = f"{system_prompt}\n{json.dumps(request, ensure_ascii=False)}"  # 요청 데이터와 시스템 프롬프트 결합
 
     try:
         response = client.chat.completions.create(
@@ -189,7 +193,7 @@ def generate_prompt(request: Dict[str, Any]) -> str:
             timeout=30,  # 타임아웃 설정 (초 단위)
         )
 
-        response_content = response.choices[0].message.content
+        response_content = response.choices[0].message.content  # 응답 내용 추출
 
     except AuthenticationError as auth_err:
         print(f"인증 오류: {auth_err}")
@@ -205,13 +209,14 @@ def generate_prompt(request: Dict[str, Any]) -> str:
         print(f"기타 오류 발생: {e}")
         raise
 
-    return response_content
+    return response_content  # 최종 응답 내용 반환
 
 def save_json(data, filename):
+    # JSON 데이터를 파일에 저장하는 함수
     os.makedirs(os.path.dirname(filename), exist_ok=True)  # 폴더가 없다면 생성
     with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-    print(f"✅ {filename} 저장 완료")
+        json.dump(data, f, ensure_ascii=False, indent=4)  # JSON 데이터 저장
+    print(f"✅ {filename} 저장 완료")  # 저장 완료 메시지 출력
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main()  # 유닛 테스트 실행
