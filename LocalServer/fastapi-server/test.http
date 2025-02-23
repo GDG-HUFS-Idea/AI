@@ -1,0 +1,16 @@
+
+### FastAPI 분석 요청 테스트
+POST http://localhost:8000/analyze
+Content-Type: application/json
+
+{
+  "prompt": "AI 기술 동향을 분석해줘"
+}
+
+### NestJS 분석 요청 테스트
+POST http://localhost:3000/analyze
+Content-Type: application/json
+
+{
+  "prompt": "AI 기술 동향을 분석해줘"
+}
