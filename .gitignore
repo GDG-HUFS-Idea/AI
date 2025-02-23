@@ -1,0 +1,13 @@
+# Python 가상 환경
+LocalServer/fastapi-server/venv/
+
+# 서버 관련 폴더 제외 설정
+LocalServer/nestjs-server/node_modules/
+LocalServer/fastapi-server/venv/
+LocalServer/.env
+LocalServer/fastapi-server/.env
+LocalServer/nestjs-server/.env
+
+# 로그 파일 제외
+LocalServer/logs/
+LocalServer/*.log
