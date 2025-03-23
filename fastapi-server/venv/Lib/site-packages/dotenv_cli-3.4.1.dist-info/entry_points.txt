@@ -1,0 +1,2 @@
+[console_scripts]
+dotenv = dotenv_cli.cli:main

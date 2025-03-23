@@ -1,0 +1,15 @@
+POST http://127.0.0.1:3001/analyze
+Content-Type: application/json
+
+{
+  "idea_bases": {
+    "current_issue": ["시장 경쟁이 치열함", "사용자 데이터 부족"],
+    "motivation": "개인화된 추천 시스템을 구현하고 싶음",
+    "core_feature": ["AI 추천 알고리즘", "사용자 행동 분석"],
+    "methodology": "딥러닝 기반의 추천 시스템 사용",
+    "expected_output": "개인화된 추천 결과를 제공하는 서비스"
+  }
+}
+
+
+

@@ -1,0 +1,159 @@
+Metadata-Version: 2.1
+Name: dotenv-cli
+Version: 3.4.1
+Summary: Simple dotenv CLI.
+Author-email: Bastian Venthur <mail@venthur.de>
+License: MIT License
+        
+        Copyright (c) 2018 Bastian Venthur
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Documentation, https://dotenv-cli.readthedocs.io/
+Project-URL: Source, https://github.com/venthur/dotenv-cli
+Project-URL: Changelog, https://github.com/venthur/dotenv-cli/blob/master/CHANGELOG.md
+Keywords: dotenv,cli,.env
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: build ; extra == 'dev'
+Requires-Dist: mkdocs ; extra == 'dev'
+Requires-Dist: mkdocs-material ; extra == 'dev'
+Requires-Dist: mypy ; extra == 'dev'
+Requires-Dist: pytest ; extra == 'dev'
+Requires-Dist: pytest-cov ; extra == 'dev'
+Requires-Dist: ruff ; extra == 'dev'
+Requires-Dist: twine ; extra == 'dev'
+
+# dotenv CLI
+
+Dotenv-CLI provides the `dotenv` command. `dotenv` loads the `.env` file from
+the current directory, puts the contents in the environment by either changing
+existing- or adding new environment variables, and executes the given command.
+
+`dotenv` supports alternative `.env` files like `.env.development` via the `-e`
+or `--dotenv` parameters. This parameter can be repeated to load multiple
+files, the .env files will be loaded in the order they are provided.
+
+With the `--replace` flag, `dotenv` also provides an option to completely
+replace the environment variables with the ones from the `.env` file, allowing
+you to control exactly which environment variables are set.
+
+`dotenv` provides bash completion, so you can use `dotenv` like this:
+
+```bash
+$ dotenv make <TAB>
+all      clean    docs     lint     release  test
+```
+
+## Install
+
+### Using PyPi
+
+dotenv-cli is [available on PyPi][pypi], you can install it via:
+
+[pypi]: https://pypi.org/project/dotenv-cli/
+
+```bash
+$ pip install dotenv-cli
+```
+
+### On Debian and Ubuntu
+
+Alternatively, you can install dotenv-cli on Debian based distributions via:
+
+```bash
+# apt-get install dotenv-cli
+```
+
+
+## Usage
+
+Create an `.env` file in the root of your project and populate it with some
+values like so:
+
+```sh
+SOME_SECRET=donttrythisathome
+SOME_CONFIG=foo
+```
+
+Just prepend the command you want to run with the extra environment variables
+from the `.env` file with `dotenv`:
+
+```bash
+$ dotenv some-command
+```
+
+and those variables will be available in your environment variables.
+
+
+## Rules
+
+The parser understands the following:
+
+* Basic unquoted values (`BASIC=basic basic`)
+* Lines starting with `export` (`export EXPORT=foo`), so you can `source` the
+  file in bash
+* Lines starting with `#` are ignored (`# Comment`)
+* Empty values (`EMPTY=`) become empty strings
+* Inner quotes are maintained in basic values: `INNER_QUOTES=this 'is' a test`
+  or `INNER_QUOTES2=this "is" a test`
+* White spaces are trimmed from unquoted values: `TRIM_WHITESPACE=  foo  ` and
+  maintained in quoted values:  `KEEP_WHITESPACE="  foo  "`
+* Interpret escapes (e.g. `\n`) in double quoted values, keep them as-is in
+  single quoted values.
+
+Example `.env` file:
+
+```sh
+BASIC=basic basic
+export EXPORT=foo
+EMPTY=
+INNER_QUOTES=this 'is' a test
+INNER_QUOTES2=this "is" a test
+TRIM_WHITESPACE= foo
+KEEP_WHITESPACE="  foo  "
+MULTILINE_DQ="multi\nline"
+MULTILINE_SQ='multi\nline'
+MULTILINE_NQ=multi\nline
+#
+# some comment
+```
+
+becomes:
+
+```sh
+$ dotenv env
+BASIC=basic basic
+EXPORT=foo
+EMPTY=
+INNER_QUOTES=this 'is' a test
+INNER_QUOTES2=this "is" a test
+TRIM_WHITESPACE=foo
+KEEP_WHITESPACE=  foo
+MULTILINE_DQ=multi
+line
+MULTILINE_SQ=multi\nline
+MULTILINE_NQ=multi\nline
+```
