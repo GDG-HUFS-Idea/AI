@@ -11,3 +11,7 @@ LocalServer/nestjs-server/.env
 # 로그 파일 제외
 LocalServer/logs/
 LocalServer/*.log
+fastapi-server/.env
+fastapi-server/.env.txt
+fastapi-server/.env
+fastapi-server/.env.txt
