@@ -1,0 +1,9 @@
+pplx-api==0.1.4 
+openai>=1.12.0
+python-dotenv>=1.0.0
+pytest>=7.4.0
+sentence-transformers>=3.2.0
+backoff>=2.2.0 
+aiohttp>=3.11.0
+requests>=2.30.0
+typing-extensions>=4.0.0

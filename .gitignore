@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+config/__pycache__/
+modules/__pycache__/
+test/__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Pytest cache
+.pytest_cache/
+
+# Visual Studio Code settings
+.vscode/
+
+# Environment variables
+.env
+
+# Python version file
+.python-version
+
+# Results directory
+results/
+
+# macOS .DS_Store files
+.DS_Store
