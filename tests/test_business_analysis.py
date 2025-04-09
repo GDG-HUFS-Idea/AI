@@ -163,47 +163,58 @@ class BusinessAnalysisTest(unittest.TestCase):
             return self._create_fallback_report(data)
 
     def _extract_json_from_content(self, content: str) -> dict:
-        """응답 내용에서 JSON 추출하는 개선된 함수"""
+        """응답 내용에서 JSON 추출하는 개선된 함수 (강화된 정규식, 탐지 로직 포함)"""
         try:
-            # 1. 먼저 직접 JSON 파싱 시도
+            if not content:
+                logger.warning("빈 콘텐츠 응답")
+                return {}
+
+            # 1단계: 완전한 JSON 파싱 시도
             try:
-                cleaned_content = content.strip()
-                return json.loads(cleaned_content)
+                return json.loads(content.strip())
             except json.JSONDecodeError:
                 pass
-            
-            # 2. 코드 블록에서 JSON 추출 시도
+
+            # 2단계: 마크다운 코드 블록 제거 및 파싱
             code_block_patterns = [
-                r'``````',  # 마크다운 코드 블록
-                r'`([\s\S]*?)`'  # 인라인 코드 블록
+                r"```json\s*([\s\S]+?)```",  # ```json ... ```
+                r"```([\s\S]+?)```",         # ``` ... ```
             ]
-            
             for pattern in code_block_patterns:
                 matches = re.findall(pattern, content, re.DOTALL)
                 for match in matches:
                     try:
-                        json_str = match.strip()
-                        return json.loads(json_str)
+                        cleaned = match.strip()
+                        return json.loads(cleaned)
                     except json.JSONDecodeError:
                         continue
-            
-            # 3. 텍스트에서 JSON 형식 외형 추출 시도
+
+            # 3단계: 중괄호 기반 JSON 추정 파싱
             json_start = content.find('{')
             json_end = content.rfind('}')
-            
-            if json_start != -1 and json_end != -1:
+            if json_start != -1 and json_end != -1 and json_end > json_start:
+                json_str = content[json_start:json_end + 1]
                 try:
-                    json_str = content[json_start:json_end+1]
                     return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"중괄호 기반 JSON 파싱 실패: {e}")
+
+            # 4단계: 개별 JSON 오브젝트 추출 시도 (다중 중괄호 포함 응답 대비)
+            json_objects = re.findall(r'\{[\s\S]*?\}', content)
+            for obj in json_objects:
+                try:
+                    parsed = json.loads(obj)
+                    if isinstance(parsed, dict) and len(parsed) >= 3:  # 최소 필드 포함 시 유효 판단
+                        return parsed
                 except json.JSONDecodeError:
-                    pass
-            
-            # 4. 모든 파싱 시도 실패 시, 텍스트 구조화 시도
+                    continue
+
+            # 5단계: 구조화 시도 (fallback)
             logger.warning("JSON 파싱 실패, 텍스트 구조화 시도")
             return self._structure_text_to_json(content)
-        
+
         except Exception as e:
-            logger.error(f"JSON 추출 중 오류: {str(e)}")
+            logger.error(f"JSON 추출 중 예외 발생: {str(e)}")
             return {}
 
     def _structure_text_to_json(self, text: str) -> dict:
