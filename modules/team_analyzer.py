@@ -1,15 +1,34 @@
 from .base_client import BaseAnalyzer
 import logging
+import hashlib
+import functools
+import time
 
 logger = logging.getLogger(__name__)
+
+# 결과 캐싱을 위한 딕셔너리
+_TEAM_ANALYSIS_CACHE = {}
+# 캐시 유효 시간 (초)
+CACHE_TTL = 3600 * 24  # 24시간
 
 class TeamAnalyzer(BaseAnalyzer):
     """팀 구성 분석 모듈"""
     
     def __init__(self):
         super().__init__(api_type='perplexity')
+        self.timeout = 60  # 분석에 최대 60초 제한
         
     def analyze(self, idea: str, problem: dict = None, solution: dict = None) -> dict:
+        # 캐시 키 생성
+        cache_key = self._generate_cache_key(idea, problem, solution)
+        
+        # 캐시에서 결과 확인
+        if cache_key in _TEAM_ANALYSIS_CACHE:
+            cached_data, timestamp = _TEAM_ANALYSIS_CACHE[cache_key]
+            if (time.time() - timestamp) < CACHE_TTL:
+                logger.info("팀 분석 결과 캐시에서 가져옴")
+                return cached_data
+        
         # 문제와 해결책에서 추가 정보 추출
         issues = ' '.join(problem.get('identifiedIssues', [])) if problem else ''
         core_elements = ' '.join(solution.get('coreElements', [])) if solution else ''
@@ -28,8 +47,36 @@ class TeamAnalyzer(BaseAnalyzer):
             f"응답은 한국어로 작성하고, 출처를 포함해주세요."
         )
         
-        response = self.client.search(query)
-        return self._parse(response)
+        # 타임아웃 처리
+        start_time = time.time()
+        try:
+            logger.info("팀 분석 요청 시작")
+            response = self.client.search(query)
+            result = self._parse(response)
+            
+            # 결과 캐싱
+            _TEAM_ANALYSIS_CACHE[cache_key] = (result, time.time())
+            logger.info(f"팀 분석 완료 (소요 시간: {time.time() - start_time:.2f}초)")
+            return result
+            
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"팀 분석 실패: {str(e)} (소요 시간: {elapsed:.2f}초)")
+            if elapsed >= self.timeout:
+                return "팀 분석 시간 초과 (60초)"
+            return "팀 분석 데이터 없음"
+    
+    def _generate_cache_key(self, idea: str, problem: dict = None, solution: dict = None) -> str:
+        """입력 데이터로부터 캐시 키 생성"""
+        key_str = idea
+        
+        if problem:
+            key_str += str(problem.get('identifiedIssues', ''))
+            
+        if solution:
+            key_str += str(solution.get('coreElements', ''))
+            
+        return hashlib.md5(key_str.encode('utf-8')).hexdigest()
         
     def _parse(self, data: dict) -> dict:
         try:

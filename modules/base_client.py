@@ -4,6 +4,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# API 클라이언트 인스턴스를 저장할 전역 딕셔너리
+_API_CLIENTS = {
+    'perplexity': None,
+    'openai': None
+}
+
 class BaseAnalyzer:
     """모든 분석 모듈의 기본 클래스"""
     def __init__(self, api_type: str = 'perplexity'):
@@ -13,11 +19,17 @@ class BaseAnalyzer:
     
     def _init_client(self, api_type):
         try:
+            # 이미 초기화된 클라이언트가 있는지 확인
+            if _API_CLIENTS[api_type] is not None:
+                self.client = _API_CLIENTS[api_type]
+                return
+                
             if api_type == 'perplexity':
                 self.client = PerplexityClient(
                     api_key=Settings.PERPLEXITY_API_KEY
                 )
                 logger.info(f"{api_type.upper()} 클라이언트 초기화 완료")
+                _API_CLIENTS[api_type] = self.client
             elif api_type == 'openai':
                 from openai import OpenAI
                 self.client = OpenAI(
@@ -25,6 +37,7 @@ class BaseAnalyzer:
                     timeout=Settings.OPENAI_TIMEOUT
                 )
                 logger.info(f"{api_type.upper()} 클라이언트 초기화 완료")
+                _API_CLIENTS[api_type] = self.client
         except Exception as e:
             logger.error(f"클라이언트 초기화 실패: {str(e)}")
             raise
