@@ -208,6 +208,14 @@ class BusinessAnalysisTest(unittest.TestCase):
                         return parsed
                 except json.JSONDecodeError:
                     continue
+            
+            # 4.5단계: 잘못 분리된 JSON 필드 병합 시도
+            if "5YearKorea" in content and "marketAnalysis" in content:
+                try:
+                    merged = "{" + re.search(r'"5YearKorea"[\s\S]+', content).group(0)
+                    return json.loads(merged)
+                except Exception as e:
+                    logger.warning(f"병합 기반 JSON 파싱 실패: {e}")
 
             # 5단계: fallback
             logger.warning("JSON 파싱 실패, 텍스트 구조화 시도")
