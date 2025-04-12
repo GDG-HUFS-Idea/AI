@@ -6,12 +6,10 @@ import asyncio
 import uuid
 import enum
 from typing import Dict, Any, Optional, List, AsyncGenerator
-from fastapi import FastAPI, Request, HTTPException, status, Body, Path, Depends, Query
+from fastapi import FastAPI, Request, HTTPException, status, Query
 from fastapi.responses import StreamingResponse, JSONResponse
-import httpx
 from starlette.concurrency import run_in_threadpool
 
-# --- 모듈 임포트 (원본 구조 유지) ---
 from modules.ksicclassifier import KSICClassifier
 from modules.market_analyzer import MarketAnalyzer
 from modules.similar_service_finder import SimilarServiceFinder
@@ -20,32 +18,23 @@ from modules.limitation_analyzer import LimitationAnalyzer
 from modules.team_analyzer import TeamAnalyzer
 from modules.report_validators import ReportValidator
 from modules.prompt_builder import PromptBuilder
-# 기존: from openai import OpenAI
-# 다음처럼 예외클래스는 필요하다면 남겨도 됨
 from openai import APIError, AuthenticationError, RateLimitError, OpenAI
 from config.settings import Settings
 
-# 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# FastAPI 앱 생성
 app = FastAPI()
 
-# -- 전역 OpenAI 클라이언트 제거 --
-# client = OpenAI(api_key=Settings.OPENAI_API_KEY)  # << 제거
-
-# 태스크 상태 관리를 위한 열거형 클래스
 class TaskStatus(str, enum.Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
-# 태스크 정보를 저장할 메모리 저장소
 TASKS = {}
 
 def _reinitialize_modules():
@@ -224,6 +213,9 @@ def _structure_text_to_json(text: str) -> dict:
     return result
 
 def _ensure_required_fields(report: dict, data: dict) -> dict:
+    """
+    필수 필드가 존재하는지 확인하고, 빈 값이 있는 경우 GPT에게 다시 요청합니다.
+    """
     required_fields = {
         "marketAnalysis": {"domestic": {}, "global": {}},
         "similarServices": [],
@@ -235,10 +227,46 @@ def _ensure_required_fields(report: dict, data: dict) -> dict:
         "requiredTeam": [],
         "scores": {"market": 0, "opportunity": 0, "similarService": 0, "risk": 0, "total": 0},
     }
+
+    def is_empty(value):
+        """값이 비어있는지 확인하는 헬퍼 함수"""
+        if value is None:
+            return True
+        if isinstance(value, (str, list, dict)):
+            return len(value) == 0
+        return False
+
+    def check_nested_fields(obj, required):
+        """중첩된 필드의 빈 값 확인"""
+        if isinstance(required, dict):
+            for key, sub_required in required.items():
+                if key not in obj or is_empty(obj[key]):
+                    return False
+                if not check_nested_fields(obj[key], sub_required):
+                    return False
+        elif isinstance(required, list):
+            if not obj or not all(not is_empty(item) for item in obj):
+                return False
+        return True
+
+    # 필수 필드 존재 여부 확인
     for field, default_value in required_fields.items():
         if field not in report:
             report[field] = default_value
 
+    # 빈 값이 있는지 확인
+    has_empty_values = False
+    for field, required in required_fields.items():
+        if not check_nested_fields(report[field], required):
+            has_empty_values = True
+            break
+
+    # 빈 값이 있으면 GPT에게 다시 요청
+    if has_empty_values:
+        logger.warning("보고서에 빈 값이 있어 GPT에게 다시 요청합니다")
+        return _generate_report(data)
+
+    # scores 필드 처리
     if "scores" in report:
         for sf in ["market", "opportunity", "similarService", "risk"]:
             if sf not in report["scores"]:
@@ -301,6 +329,8 @@ def preprocess_idea_with_llm(raw_input: dict) -> dict:
         f"기능/특징:\n{raw_input.get('features', '')}\n"
         f"방법론:\n{raw_input.get('method', '')}\n"
         f"결과물:\n{raw_input.get('deliverable', '')}\n\n"
+        "중요: 모든 필드는 필수이며, 빈 값이 없어야 합니다. "
+        "각 필드에 적절한 값을 제공하되, 없는 정보는 'N/A'로 표시하세요. "
         "반드시 위 JSON 형식에 맞춰 응답해주세요."
     )
     
